@@ -15,7 +15,7 @@ public class ConnectionHandler
     internal delegate void DataReceivedEvent(int id, byte[] data);
     internal event DataReceivedEvent? DataReceived;
 
-    internal delegate void DataReceivedUnknownConnectionEvent(byte[] data);
+    internal delegate void DataReceivedUnknownConnectionEvent(string senderIp, byte[] data);
     internal event DataReceivedUnknownConnectionEvent? DataReceivedUnknownConnection;
 
     private EssentialOptions _essentials;
@@ -38,7 +38,7 @@ public class ConnectionHandler
         _listeningHandler.DataReceived += OnDataReceived;
     }
 
-    private void OnDataReceived(Payloads.Internal.CommunicationPayload payload)
+    private void OnDataReceived(CommunicationPayload payload)
     {
         Connection? receivingConnection = _connections.SingleOrDefault(c => c.DeviceIdentifier == payload.DeviceIdentifier);
 
@@ -51,7 +51,7 @@ public class ConnectionHandler
         }
         else
         {
-            DataReceivedUnknownConnection?.Invoke(payload.Data);
+            DataReceivedUnknownConnection?.Invoke(payload.SenderIp, payload.Data);
         }
     }
 

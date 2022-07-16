@@ -1,10 +1,11 @@
 ﻿
 using QuickSockets.Options;
+using QuickSockets.Payloads.Internal;
 
 namespace QuickSockets.Communication.Sending;
 
 /// <summary>
-/// Orchistrates all TCP-Senders and their threads
+/// Orchistrates sending of Data through TCP-IP sockets
 /// </summary>
 internal class SenderHandler
 {
@@ -15,8 +16,13 @@ internal class SenderHandler
         _essentials = essentials;
     }
 
-    internal void Que(Connection connection, byte[] data)
+    internal async Task<CommunicationPayload> Send(Connection connection, int port, byte[] data)
     {
-        throw new NotImplementedException();
+        var payload = new CommunicationPayload(connection.IP, _essentials.DeviceIdentifier, data);
+
+        using (var sender = new Sender(connection.IP, port))
+        {
+            CommunicationPayload? result = await sender.SendData(payload.GetFullData());
+        }
     }
 }
