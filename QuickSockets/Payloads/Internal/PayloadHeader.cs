@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using QuickSockets.Constants;
+using QuickSockets.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,20 +13,19 @@ internal class PayloadHeader
 {
     public int ContentLength { get; set; }
     public string Checksum { get; set; }
-    public string ContentType { get; set; }
+    public PayloadTypes Type { get; set; }
 
     public PayloadHeader()
     {
-        ContentLength = 0;
-        Checksum = String.Empty;
-        ContentType = String.Empty;
+        this.ContentLength = 0;
+        this.Checksum = String.Empty;
     }
 
     public PayloadHeader(CommunicationPayload data)
     {
         //TODO: Checksum
-        //TODO: ContentType
-
+        this.Checksum = String.Empty;
+        this.Type = data.Type;
         this.ContentLength = data.GetBytes().Length;
     }
 

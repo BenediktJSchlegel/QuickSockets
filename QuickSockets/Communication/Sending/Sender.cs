@@ -30,22 +30,6 @@ internal class Sender : IDisposable
         _socket = null;
     }
 
-    public void Dispose()
-    {
-        try
-        {
-            if (_socket != null && _socket.Connected)
-            {
-                _socket.Shutdown(SocketShutdown.Both);
-                _socket.Close();
-            }
-        }
-        catch (Exception)
-        {
-
-        }
-    }
-
     private void CloseSocket()
     {
         try
@@ -97,15 +81,15 @@ internal class Sender : IDisposable
         }
     }
 
-    private void ConnectCallback(IAsyncResult ar)
+    private void ConnectCallback(IAsyncResult asyncResult)
     {
         try
         {
-            if (ar.AsyncState != null && ar.AsyncState is Socket)
+            if (asyncResult.AsyncState != null && asyncResult.AsyncState is Socket)
             {
-                Socket client = (Socket)ar.AsyncState;
+                Socket socket = (Socket)asyncResult.AsyncState;
 
-                client.EndConnect(ar);
+                socket.EndConnect(asyncResult);
 
                 _connectDone.Set();
             }
@@ -120,7 +104,7 @@ internal class Sender : IDisposable
     {
         try
         {
-            StateObject state = new StateObject();
+            var state = new StateObject();
             state.Socket = socket;
 
             socket.BeginReceive(state.Buffer, 0, ConfigurationConstants.BUFFER_SIZE, 0, new AsyncCallback(ReceiveCallback), state);
@@ -131,15 +115,15 @@ internal class Sender : IDisposable
         }
     }
 
-    private void ReceiveCallback(IAsyncResult ar)
+    private void ReceiveCallback(IAsyncResult asyncResult)
     {
         try
         {
-            if (ar.AsyncState != null && ar.AsyncState is StateObject state && state.Socket != null)
+            if (asyncResult.AsyncState != null && asyncResult.AsyncState is StateObject state && state.Socket != null)
             {
                 Socket client = state.Socket;
 
-                int bytesRead = client.EndReceive(ar);
+                int bytesRead = client.EndReceive(asyncResult);
                 state.ReadDataBytes += bytesRead;
 
                 if (bytesRead > 0)
@@ -165,11 +149,11 @@ internal class Sender : IDisposable
         }
     }
 
-    private void Send(Socket client, byte[] data)
+    private void Send(Socket socket, byte[] data)
     {
         try
         {
-            client.BeginSend(data, 0, data.Length, 0, new AsyncCallback(SendCallback), client);
+            socket.BeginSend(data, 0, data.Length, 0, new AsyncCallback(SendCallback), socket);
         }
         catch (Exception)
         {
@@ -177,13 +161,13 @@ internal class Sender : IDisposable
         }
     }
 
-    private void SendCallback(IAsyncResult ar)
+    private void SendCallback(IAsyncResult asyncResult)
     {
         try
         {
-            if (ar.AsyncState != null && ar.AsyncState is Socket socket)
+            if (asyncResult.AsyncState != null && asyncResult.AsyncState is Socket socket)
             {
-                socket.EndSend(ar);
+                socket.EndSend(asyncResult);
 
                 _sendDone.Set();
             }
@@ -194,4 +178,19 @@ internal class Sender : IDisposable
         }
     }
 
+    public void Dispose()
+    {
+        try
+        {
+            if (_socket != null && _socket.Connected)
+            {
+                _socket.Shutdown(SocketShutdown.Both);
+                _socket.Close();
+            }
+        }
+        catch (Exception)
+        {
+
+        }
+    }
 }

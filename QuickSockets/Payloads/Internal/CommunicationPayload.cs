@@ -1,5 +1,6 @@
 ﻿
 using Newtonsoft.Json;
+using QuickSockets.Enums;
 using System.Text;
 
 namespace QuickSockets.Payloads.Internal;
@@ -11,13 +12,17 @@ internal class CommunicationPayload
     public string DeviceIdentifier { get; set; }
     public byte[] Data { get; set; }
     public DateTime CreationTime { get; set; }
+    public Dictionary<string, string> Attributes { get; set; }
+    public PayloadTypes Type { get; set; }
 
-    public CommunicationPayload(string ip, string deviceIdentifier, byte[] data)
+    public CommunicationPayload(PayloadTypes type, string ip, string deviceIdentifier, byte[] data, Dictionary<string, string> attributes)
     {
-        SenderIp = ip;
-        DeviceIdentifier = deviceIdentifier;
-        Data = data;
-        CreationTime = DateTime.Now;
+        this.SenderIp = ip;
+        this.DeviceIdentifier = deviceIdentifier;
+        this.Data = data;
+        this.CreationTime = DateTime.Now;
+        this.Attributes = attributes;
+        this.Type = type;
     }
 
     internal byte[] GetBytes()

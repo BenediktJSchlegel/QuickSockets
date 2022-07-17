@@ -1,7 +1,5 @@
-﻿
-using QuickSockets.Options;
+﻿using QuickSockets.Options;
 using QuickSockets.Payloads.Internal;
-using QuickSockets.Socket;
 
 namespace QuickSockets.Communication.Listening;
 
@@ -13,36 +11,68 @@ internal class ListeningHandler
     internal delegate void DataReceivedEvent(CommunicationPayload payload);
     internal event DataReceivedEvent? DataReceived;
 
+    private EssentialOptions _essentials;
     private List<KeyValuePair<Thread, Listener>> _workers;
 
-    private EssentialOptions _essentials;
-
-    public ListeningHandler(EssentialOptions essentials)
+    internal ListeningHandler(EssentialOptions essentials)
     {
-        _workers = new List<KeyValuePair<Thread, Listener>>();
         _essentials = essentials;
+        _workers = new List<KeyValuePair<Thread, Listener>>();
     }
 
-    /// <summary>
-    ///  Dummy for testing
-    /// </summary>
-    private void SpawnListener(object options)
+    internal Task<List<int>> Start()
     {
-        var listener = new Listener();
+        var ports = new List<int>()
+        {
+            _essentials.PortOptions.HandshakePort,
+            _essentials.PortOptions.PingPort,
+            _essentials.PortOptions.DataPort
+        }.Distinct().ToList();
+
+        foreach (int port in ports)
+        {
+            KeyValuePair<Thread, Listener> worker = SpawnListener(_essentials.OwnIP, port);
+
+            worker.Value.DataReceived += OnDataReceived;
+            worker.Key.Start();
+
+            _workers.Add(worker);
+        }
+
+        return Task.FromResult(ports);
+    }
+
+    internal Task<bool> Stop()
+    {
+        try
+        {
+            foreach (KeyValuePair<Thread, Listener> worker in _workers)
+            {
+                worker.Value.Stop();
+            }
+
+            return Task.FromResult(true);
+        }
+        catch (Exception)
+        {
+            return Task.FromResult(false);
+        }
+    }
+
+    private KeyValuePair<Thread, Listener> SpawnListener(string ip, int port)
+    {
+        var listener = new Listener(ip, port, _essentials);
         var thread = new Thread(() =>
         {
-            listener.DataReceived += OnDataReceived;
             listener.Run();
         });
 
-        _workers.Add(new KeyValuePair<Thread, Listener>(thread, listener));
-
-        thread.Start();
-
+        return new KeyValuePair<Thread, Listener>(thread, listener);
     }
 
     private void OnDataReceived(Payloads.Internal.CommunicationPayload payload)
     {
-        DataReceived?.Invoke(payload);
+        if (payload.Type == Enums.PayloadTypes.Data)
+            DataReceived?.Invoke(payload);
     }
 }

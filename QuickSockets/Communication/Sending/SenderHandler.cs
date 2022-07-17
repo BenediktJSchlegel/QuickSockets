@@ -16,13 +16,27 @@ internal class SenderHandler
         _essentials = essentials;
     }
 
-    internal async Task<CommunicationPayload> Send(Connection connection, int port, byte[] data)
+    internal async Task<CommunicationPayload> SendAsync(Connection connection, byte[] data, Dictionary<string, string> attributes)
     {
-        var payload = new CommunicationPayload(connection.IP, _essentials.DeviceIdentifier, data);
+        var payload = new CommunicationPayload(Enums.PayloadTypes.Data, _essentials.OwnIP, _essentials.DeviceIdentifier, data, attributes);
 
-        using (var sender = new Sender(connection.IP, port))
+        return await SendPayloadAsync(connection.IP, _essentials.PortOptions.DataPort, payload);
+    }
+
+    internal async Task<CommunicationPayload> HandshakeAsync(string ip)
+    {
+        var payload = new CommunicationPayload(Enums.PayloadTypes.Handshake, _essentials.OwnIP, _essentials.DeviceIdentifier, new byte[0], new Dictionary<string, string>());
+
+        return await SendPayloadAsync(ip, _essentials.PortOptions.HandshakePort, payload);
+    }
+
+    private async Task<CommunicationPayload> SendPayloadAsync(string ip, int port, CommunicationPayload payload)
+    {
+        using (var sender = new Sender(ip, port))
         {
             CommunicationPayload? result = await sender.SendData(payload.GetFullData());
+
+            return result;
         }
     }
 }

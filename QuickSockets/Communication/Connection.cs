@@ -11,14 +11,12 @@ internal class Connection
     public DateTime LastContact { get; set; }
     public Status Status { get; set; }
 
-    public Connection(RegistrationPayload payload)
+    public Connection(RegistrationPayload payload, DateTime lastContact, Status status, string identifier)
     {
         this.UniqueId = payload.UniqueId;
         this.IP = payload.IP;
-
-        //TODO:
-        this.LastContact = DateTime.Now;
-        this.Status = Status.NotResponding;
-        this.DeviceIdentifier = String.Empty;
+        this.LastContact = lastContact;
+        this.Status = status;
+        this.DeviceIdentifier = identifier;
     }
 }
