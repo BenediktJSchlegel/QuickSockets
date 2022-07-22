@@ -12,11 +12,14 @@ namespace QuickSockets;
 
 public class ConnectionHandler
 {
-    internal delegate void DataReceivedEvent(int id, byte[] data);
-    internal event DataReceivedEvent? DataReceived;
+    public delegate void DataReceivedEvent(int id, byte[] data);
+    public event DataReceivedEvent? DataReceived;
 
-    internal delegate void DataReceivedUnknownConnectionEvent(string senderIp, byte[] data);
-    internal event DataReceivedUnknownConnectionEvent? DataReceivedUnknownConnection;
+    public delegate void DataReceivedUnknownConnectionEvent(string senderIp, byte[] data);
+    public event DataReceivedUnknownConnectionEvent? DataReceivedUnknownConnection;
+
+    public delegate void HandshakeReceivedEvent(string identifier, string ip);
+    public event HandshakeReceivedEvent? HandshakeReceived;
 
     private EssentialOptions _essentials;
     private ConnectionList _connections;
@@ -143,16 +146,24 @@ public class ConnectionHandler
     {
         Connection? receivingConnection = _connections.SingleOrDefault(c => c.DeviceIdentifier == payload.DeviceIdentifier);
 
-        if (receivingConnection != null)
+        if (payload.Type == Enums.PayloadTypes.Data)
         {
-            receivingConnection.LastContact = DateTime.Now;
-            receivingConnection.Status = Status.Responding;
+            if (receivingConnection != null)
+            {
+                receivingConnection.LastContact = DateTime.Now;
+                receivingConnection.Status = Status.Responding;
 
-            DataReceived?.Invoke(receivingConnection.UniqueId, payload.Data);
+                DataReceived?.Invoke(receivingConnection.UniqueId, payload.Data);
+            }
+            else
+            {
+                DataReceivedUnknownConnection?.Invoke(payload.SenderIp, payload.Data);
+            }
         }
-        else
+        else if (payload.Type == Enums.PayloadTypes.Handshake)
         {
-            DataReceivedUnknownConnection?.Invoke(payload.SenderIp, payload.Data);
+            HandshakeReceived?.Invoke(payload.DeviceIdentifier, payload.SenderIp);
         }
+
     }
 }

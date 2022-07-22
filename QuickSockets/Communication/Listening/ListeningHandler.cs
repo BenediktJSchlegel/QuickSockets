@@ -42,21 +42,17 @@ internal class ListeningHandler
         return Task.FromResult(ports);
     }
 
-    internal Task<bool> Stop()
+    internal Task<List<int>> Stop()
     {
-        try
-        {
-            foreach (KeyValuePair<Thread, Listener> worker in _workers)
-            {
-                worker.Value.Stop();
-            }
+        var result = new List<int>();
 
-            return Task.FromResult(true);
-        }
-        catch (Exception)
+        foreach (KeyValuePair<Thread, Listener> worker in _workers)
         {
-            return Task.FromResult(false);
+            worker.Value.Stop();
+            result.Add(worker.Value.Port);
         }
+
+        return Task.FromResult(result);
     }
 
     private KeyValuePair<Thread, Listener> SpawnListener(string ip, int port)
@@ -72,7 +68,6 @@ internal class ListeningHandler
 
     private void OnDataReceived(Payloads.Internal.CommunicationPayload payload)
     {
-        if (payload.Type == Enums.PayloadTypes.Data)
-            DataReceived?.Invoke(payload);
+        DataReceived?.Invoke(payload);
     }
 }

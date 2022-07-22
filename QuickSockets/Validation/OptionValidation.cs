@@ -11,7 +11,8 @@ namespace QuickSockets.Validation
     {
         internal static bool EssentialOptionsAreValid(EssentialOptions? essentials)
         {
-            throw new NotImplementedException();
+            // TODO: Implement
+            return true;
         }
     }
 }

@@ -16,6 +16,9 @@ internal class Listener
     internal delegate void DataReceivedEvent(CommunicationPayload payload);
     internal event DataReceivedEvent? DataReceived;
 
+    internal delegate void ExceptionRaisedEvent(Exception ex);
+    internal event ExceptionRaisedEvent? ExceptionRaised;
+
     private string _ip;
     private int _port;
     private bool _running = false;
@@ -23,7 +26,9 @@ internal class Listener
     private Socket? _listeningSocket;
     private Options.EssentialOptions _essentials;
 
-    private static ManualResetEvent _threadReset = new ManualResetEvent(false);
+    private ManualResetEvent _threadReset = new ManualResetEvent(false);
+
+    public int Port => _port;
 
     internal Listener(string ip, int port, Options.EssentialOptions essentials)
     {
@@ -49,6 +54,8 @@ internal class Listener
             {
                 try
                 {
+                    Console.WriteLine($"Starting Listener on Port {_port}");
+
                     _threadReset.Reset();
                     _listeningSocket.BeginAccept(new AsyncCallback(AcceptCallback), _listeningSocket);
                     _threadReset.WaitOne();
@@ -80,8 +87,8 @@ internal class Listener
         {
             if (_listeningSocket != null)
             {
-                _listeningSocket.Shutdown(SocketShutdown.Both);
                 _listeningSocket.Close();
+                _listeningSocket.Shutdown(SocketShutdown.Both);
             }
         }
         catch (Exception)
@@ -139,11 +146,21 @@ internal class Listener
                         }
                         else
                         {
-                            var response = new CommunicationPayload(Enums.PayloadTypes.Confirmation, _essentials.OwnIP, _essentials.DeviceIdentifier, new byte[0], new Dictionary<string, string>())
+                            CommunicationPayload? payload = JsonConvert.DeserializeObject<CommunicationPayload>(state.DataBuilder.ToString());
 
-                            string responseAsJson = JsonConvert.SerializeObject(response);
+                            if (payload != null)
+                            {
+                                DataReceived?.Invoke(payload);
 
-                            Send(socket, responseAsJson);
+                                var response = new CommunicationPayload(Enums.PayloadTypes.Confirmation, _essentials.OwnIP, _essentials.DeviceIdentifier, Array.Empty<byte>(), new Dictionary<string, string>());
+                                string responseAsJson = JsonConvert.SerializeObject(response);
+
+                                Send(socket, responseAsJson);
+                            }
+                            else
+                            {
+                                throw new InvalidPayloadException(state.DataBuilder.ToString());
+                            }
                         }
                     }
                     else
@@ -166,8 +183,9 @@ internal class Listener
             }
 
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            ExceptionRaised?.Invoke(ex);
             ResetSocket();
         }
 

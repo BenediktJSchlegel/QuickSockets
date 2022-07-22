@@ -22,6 +22,8 @@ internal class Sender : IDisposable
     private int _port;
 
     private Socket? _socket;
+    private Exception? _thrownException;
+    private bool _failedSend = false;
 
     internal Sender(string ip, int port)
     {
@@ -62,11 +64,22 @@ internal class Sender : IDisposable
             _socket.BeginConnect(remoteEP, new AsyncCallback(ConnectCallback), _socket);
             _connectDone.WaitOne();
 
+            if (_failedSend && _thrownException != null)
+                throw new FailedSendException("Failed Connecting.", _thrownException);
+
             Send(_socket, data);
+
             _sendDone.WaitOne();
 
+            if (_failedSend && _thrownException != null)
+                throw new FailedSendException("Failed Sending.", _thrownException);
+
             Receive(_socket);
+
             _receiveDone.WaitOne();
+
+            if (_failedSend && _thrownException != null)
+                throw new FailedSendException("Failed Receiving Response.", _thrownException);
 
             CommunicationPayload? response = JsonConvert.DeserializeObject<CommunicationPayload>(_response);
 
@@ -94,9 +107,10 @@ internal class Sender : IDisposable
                 _connectDone.Set();
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             CloseSocket();
+            SetSendingFailed(ex);
         }
     }
 
@@ -109,9 +123,10 @@ internal class Sender : IDisposable
 
             socket.BeginReceive(state.Buffer, 0, ConfigurationConstants.BUFFER_SIZE, 0, new AsyncCallback(ReceiveCallback), state);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             CloseSocket();
+            SetSendingFailed(ex);
         }
     }
 
@@ -143,9 +158,10 @@ internal class Sender : IDisposable
                 }
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             CloseSocket();
+            SetSendingFailed(ex);
         }
     }
 
@@ -155,9 +171,10 @@ internal class Sender : IDisposable
         {
             socket.BeginSend(data, 0, data.Length, 0, new AsyncCallback(SendCallback), socket);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             CloseSocket();
+            SetSendingFailed(ex);
         }
     }
 
@@ -172,10 +189,21 @@ internal class Sender : IDisposable
                 _sendDone.Set();
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             CloseSocket();
+            SetSendingFailed(ex);
         }
+    }
+
+    private void SetSendingFailed(Exception ex)
+    {
+        _failedSend = true;
+        _thrownException = ex;
+
+        _sendDone.Set();
+        _receiveDone.Set();
+        _connectDone.Set();
     }
 
     public void Dispose()

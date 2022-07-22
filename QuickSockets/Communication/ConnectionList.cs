@@ -14,4 +14,5 @@ internal class ConnectionList : List<Connection>
     {
         return this.FirstOrDefault(c => c.UniqueId == id) != null;
     }
+
 }
