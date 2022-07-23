@@ -15,6 +15,8 @@ internal class StateObject
 
     internal StringBuilder DataBuilder { get; set; } = new StringBuilder();
 
+    internal List<byte> Data { get; set; } = new List<byte>();
+
     internal System.Net.Sockets.Socket? Socket { get; set; } = null;
 
     internal bool HeaderHasBeenRead => ReceivedHeader != null;

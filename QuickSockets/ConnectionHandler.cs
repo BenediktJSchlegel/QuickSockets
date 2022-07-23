@@ -18,6 +18,12 @@ public class ConnectionHandler
     public delegate void DataReceivedUnknownConnectionEvent(string senderIp, byte[] data);
     public event DataReceivedUnknownConnectionEvent? DataReceivedUnknownConnection;
 
+    public delegate void BytesReceivedUnknownConnectionEvent(int received, int totalReceived, int total, string ip);
+    public event BytesReceivedUnknownConnectionEvent? BytesReceivedUnknownConnection;
+
+    public delegate void BytesReceivedEvent(int received, int totalReceived, int total, int uniqueId);
+    public event BytesReceivedEvent? BytesReceived;
+
     public delegate void HandshakeReceivedEvent(string identifier, string ip);
     public event HandshakeReceivedEvent? HandshakeReceived;
 
@@ -29,7 +35,7 @@ public class ConnectionHandler
 
     public ConnectionHandler(EssentialOptions essentials)
     {
-        if (!OptionValidation.EssentialOptionsAreValid(_essentials))
+        if (!OptionValidation.EssentialOptionsAreValid(essentials))
             throw new Exception("Options are not valid");
 
         _essentials = essentials;
@@ -39,6 +45,7 @@ public class ConnectionHandler
         _senderHandler = new SenderHandler(_essentials);
 
         _listeningHandler.DataReceived += OnDataReceived;
+        _listeningHandler.BytesReceived += OnBytesReceived;
     }
 
     public async Task<ListenerChangedResult> StartListeningAsync()
@@ -140,6 +147,16 @@ public class ConnectionHandler
 
             return result;
         }
+    }
+
+    private void OnBytesReceived(int received, int totalReceived, int total, string ip)
+    {
+        Connection? receivingConnection = _connections.SingleOrDefault(c => c.IP == ip);
+
+        if (receivingConnection == null)
+            BytesReceivedUnknownConnection?.Invoke(received, totalReceived, total, ip);
+        else
+            BytesReceived?.Invoke(received, totalReceived, total, receivingConnection.UniqueId);
     }
 
     private void OnDataReceived(CommunicationPayload payload)

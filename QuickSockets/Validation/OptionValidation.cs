@@ -11,6 +11,12 @@ namespace QuickSockets.Validation
     {
         internal static bool EssentialOptionsAreValid(EssentialOptions? essentials)
         {
+            if (essentials == null)
+                throw new ArgumentNullException(nameof(essentials));
+
+            if (essentials.DeviceIdentifier.Contains(Constants.ConfigurationConstants.DATA_DIVIDER))
+                throw new Exception("Device Identifier cannot contain the character-sequence '" + Constants.ConfigurationConstants.DATA_DIVIDER + "'");
+            
             // TODO: Implement
             return true;
         }

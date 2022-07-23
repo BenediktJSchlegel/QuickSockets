@@ -26,7 +26,7 @@ internal class PayloadHeader
         //TODO: Checksum
         this.Checksum = String.Empty;
         this.Type = data.Type;
-        this.ContentLength = data.GetBytes().Length;
+        this.ContentLength = data.GetBytes().Length + Encoding.ASCII.GetByteCount(Constants.ConfigurationConstants.DATA_DIVIDER) + data.Data.Length;
     }
 
     public byte[] GetBytes()

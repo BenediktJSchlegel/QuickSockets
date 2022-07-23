@@ -8,11 +8,12 @@ internal class Program
     internal static void Main(string[] args)
     {
         Console.WriteLine("Starting QuickSockets Demo . . .");
+        bool running = true;
 
-        while (true)
+        while (running)
         {
-            Console.WriteLine("Option: HS | SEND | REC | STOP");
-            string i = Console.ReadLine();
+            Console.WriteLine("Option: HS | SEND | REC | STOP | KILL");
+            string i = Console.ReadLine() ?? String.Empty;
 
             if (i == "SEND")
                 Send();
@@ -22,6 +23,8 @@ internal class Program
                 Listen();
             else if (i == "STOP")
                 Stop();
+            else if (i == "KILL")
+                running = false;
         }
 
 
@@ -48,9 +51,11 @@ internal class Program
 
         var essentials = new QuickSockets.Options.EssentialOptions("192.168.0.60", "1", portOptions, connectionValidationOptions);
         _handler = new QuickSockets.ConnectionHandler(essentials);
-        
+
         _handler.DataReceived += HandlerDataReceived;
         _handler.DataReceivedUnknownConnection += HandlerDataReceivedUnknownConnection;
+        _handler.BytesReceived += HandlerBytesReceived;
+        _handler.BytesReceivedUnknownConnection += HandlerBytesReceivedUnknownConnection;
 
         QuickSockets.Results.ListenerChangedResult? result = await _handler.StartListeningAsync();
 
@@ -58,6 +63,16 @@ internal class Program
             Console.WriteLine($"Listening on Ports: {Spread(result.Ports)} . . .");
         else
             Console.WriteLine("Failed Listening: result == null");
+    }
+
+    private static void HandlerBytesReceivedUnknownConnection(int received, int totalReceived, int total, string ip)
+    {
+        Console.WriteLine($"UNKNOWN: {totalReceived}/{total}");
+    }
+
+    private static void HandlerBytesReceived(int received, int totalReceived, int total, int uniqueId)
+    {
+        Console.WriteLine($"KNOWN: {totalReceived}/{total}");
     }
 
     private static void HandlerDataReceivedUnknownConnection(string senderIp, byte[] data)
@@ -85,7 +100,7 @@ internal class Program
     private static async void Stop()
     {
         Console.WriteLine("STOPPING LISTENING");
-        
+
         QuickSockets.Results.ListenerChangedResult? result = await _handler.StopListeningAsync();
 
         if (result != null && result.Ports != null)
@@ -99,14 +114,19 @@ internal class Program
         if (_handler == null)
             throw new ArgumentException();
 
-        Console.WriteLine("INPUT DATA");
-        string data = Console.ReadLine();
+        string filePath = @"C:\Users\bened\Desktop\video.mp4";
+        byte[] fileBytes = File.ReadAllBytes(filePath);
 
-        QuickSockets.Results.SendDataResult? result = await _handler.SendDataAsync(Encoding.ASCII.GetBytes(data), null, 1);
+        //Console.WriteLine("INPUT DATA");
+        //string data = Console.ReadLine() ?? "Default";
+
+        QuickSockets.Results.SendDataResult? result = await _handler.SendDataAsync(fileBytes, null, 1);
 
         if (result == null)
+        {
             Console.WriteLine("NO RESULT");
-        else if(result != null && result.Exception != null)
+        }
+        else if (result.Exception != null)
         {
             Console.WriteLine(result.Exception);
         }
@@ -145,7 +165,7 @@ internal class Program
 
         QuickSockets.Results.ConnectionRegistrationResult? result = await _handler.RegisterConnectionAsync(payload);
 
-        if(result == null)
+        if (result == null)
             Console.WriteLine("FAILED: result == null");
         else
         {

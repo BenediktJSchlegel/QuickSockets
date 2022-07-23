@@ -208,17 +208,23 @@ internal class Sender : IDisposable
 
     public void Dispose()
     {
+        _response = String.Empty;
+        _thrownException = null;
+        _failedSend = false;
+
         try
         {
             if (_socket != null && _socket.Connected)
             {
-                _socket.Shutdown(SocketShutdown.Both);
                 _socket.Close();
+                _socket.Shutdown(SocketShutdown.Both);
             }
         }
         catch (Exception)
         {
 
         }
+
+        GC.Collect();
     }
 }

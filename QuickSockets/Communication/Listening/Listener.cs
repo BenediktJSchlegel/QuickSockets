@@ -19,9 +19,13 @@ internal class Listener
     internal delegate void ExceptionRaisedEvent(Exception ex);
     internal event ExceptionRaisedEvent? ExceptionRaised;
 
+    internal delegate void BytesReceivedEvent(int received, int totalReceived, int total, string ip);
+    internal event BytesReceivedEvent? BytesReceived;
+
     private string _ip;
     private int _port;
     private bool _running = false;
+    private StateObject _state;
 
     private Socket? _listeningSocket;
     private Options.EssentialOptions _essentials;
@@ -74,6 +78,20 @@ internal class Listener
         }
     }
 
+    private void ResetState()
+    {
+        if (_state == null)
+            return;
+
+        if (_state.DataBuilder != null)
+            _state.DataBuilder.Clear();
+
+        _state.Socket = null;
+        _state = null;
+
+        GC.Collect();
+    }
+
     internal void Stop()
     {
         _running = false;
@@ -109,11 +127,25 @@ internal class Listener
                 Socket handler = listener.EndAccept(asyncResult);
 
                 // Create the state object.  
-                StateObject state = new StateObject();
-                state.Socket = handler;
+                _state = new StateObject();
+                _state.Socket = handler;
 
-                // First Receive. Read the header to the HeaderBuffer
-                handler.BeginReceive(state.HeaderBuffer, 0, ConfigurationConstants.HEADER_SIZE, 0, new AsyncCallback(ReadCallback), state);
+                _stillReceiving = true;
+                _receiveReset.Reset();
+
+                // Receive on a loop until all data is received.
+                // 1. receive = header => must read into HeaderBuffer
+                // 2 - n. receive = data => must read into DataBuffer
+                while (_stillReceiving)
+                {
+                    if (_state.HeaderHasBeenRead)
+                        handler.BeginReceive(_state.Buffer, 0, ConfigurationConstants.BUFFER_SIZE, 0, new AsyncCallback(ReadCallback), _state);
+                    else
+                        handler.BeginReceive(_state.HeaderBuffer, 0, ConfigurationConstants.HEADER_SIZE, 0, new AsyncCallback(ReadCallback), _state);
+
+                    // Wait for the previous receive to finish before calling the next
+                    _receiveReset.WaitOne();
+                }
             }
         }
         catch (Exception)
@@ -121,6 +153,9 @@ internal class Listener
             ResetSocket();
         }
     }
+
+    private ManualResetEvent _receiveReset = new ManualResetEvent(false);
+    private bool _stillReceiving = true;
 
     internal void ReadCallback(IAsyncResult asyncResult)
     {
@@ -140,16 +175,35 @@ internal class Listener
                         state.DataBuilder.Append(Encoding.ASCII.GetString(state.Buffer, 0, bytesRead));
                         state.ReadDataBytes += bytesRead;
 
+                        // Pass information out if its a Data-Payload
+                        if (state.ReceivedHeader.Type == Enums.PayloadTypes.Data)
+                            BytesReceived?.Invoke(bytesRead, state.ReadDataBytes, state.ReceivedHeader.ContentLength, _ip);
+
                         if (state.ReadDataBytes < state.ReceivedHeader.ContentLength)
                         {
-                            socket.BeginReceive(state.Buffer, 0, ConfigurationConstants.BUFFER_SIZE, 0, new AsyncCallback(ReadCallback), state);
+                            // Not all data has been read => continue receiving
+                            _stillReceiving = true;
                         }
                         else
                         {
-                            CommunicationPayload? payload = JsonConvert.DeserializeObject<CommunicationPayload>(state.DataBuilder.ToString());
+                            // All data has been read => stop receiving
+                            _stillReceiving = false;
+                            string dataString = state.DataBuilder.ToString();
+
+                            if (!dataString.Contains(Constants.ConfigurationConstants.DATA_DIVIDER))
+                                throw new InvalidPayloadException(state.DataBuilder.ToString());
+
+                            string[] splitData = dataString.Split(Constants.ConfigurationConstants.DATA_DIVIDER, 2);
+
+                            if (splitData.Length != 2)
+                                throw new InvalidPayloadException(state.DataBuilder.ToString());
+
+                            CommunicationPayload? payload = JsonConvert.DeserializeObject<CommunicationPayload>(splitData[0]);
 
                             if (payload != null)
                             {
+                                payload.Data = Encoding.ASCII.GetBytes(splitData[1]);
+
                                 DataReceived?.Invoke(payload);
 
                                 var response = new CommunicationPayload(Enums.PayloadTypes.Confirmation, _essentials.OwnIP, _essentials.DeviceIdentifier, Array.Empty<byte>(), new Dictionary<string, string>());
@@ -167,7 +221,7 @@ internal class Listener
                     {
                         Debug.Assert(bytesRead == ConfigurationConstants.HEADER_SIZE);
 
-                        // First Read => Read the Header
+                        // First Read => read the header
                         string headerData = Encoding.ASCII.GetString(state.HeaderBuffer, 0, bytesRead);
                         PayloadHeader? header = JsonConvert.DeserializeObject<PayloadHeader>(headerData);
 
@@ -176,19 +230,27 @@ internal class Listener
 
                         state.ReceivedHeader = header;
 
-                        // Header was received => Read the Data
-                        socket.BeginReceive(state.Buffer, 0, ConfigurationConstants.BUFFER_SIZE, 0, new AsyncCallback(ReadCallback), state);
+                        // header was received => read the data
+                        _stillReceiving = true;
                     }
                 }
+                else
+                {
+                    throw new NoBytesReadException();
+                }
             }
-
         }
         catch (Exception ex)
         {
+            _stillReceiving = false;
+
             ExceptionRaised?.Invoke(ex);
             ResetSocket();
         }
-
+        finally
+        {
+            _receiveReset.Set();
+        }
     }
 
     private void Send(Socket socket, string data)
@@ -217,6 +279,8 @@ internal class Listener
                 socket.Shutdown(SocketShutdown.Both);
                 socket.Close();
             }
+
+            ResetState();
         }
         catch (Exception)
         {

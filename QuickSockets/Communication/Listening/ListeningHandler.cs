@@ -11,6 +11,9 @@ internal class ListeningHandler
     internal delegate void DataReceivedEvent(CommunicationPayload payload);
     internal event DataReceivedEvent? DataReceived;
 
+    internal delegate void BytesReceivedEvent(int received, int totalReceived, int total, string ip);
+    internal event BytesReceivedEvent? BytesReceived;
+    
     private EssentialOptions _essentials;
     private List<KeyValuePair<Thread, Listener>> _workers;
 
@@ -34,6 +37,7 @@ internal class ListeningHandler
             KeyValuePair<Thread, Listener> worker = SpawnListener(_essentials.OwnIP, port);
 
             worker.Value.DataReceived += OnDataReceived;
+            worker.Value.BytesReceived += OnBytesReceived;
             worker.Key.Start();
 
             _workers.Add(worker);
@@ -64,6 +68,11 @@ internal class ListeningHandler
         });
 
         return new KeyValuePair<Thread, Listener>(thread, listener);
+    }
+
+    private void OnBytesReceived(int received, int totalReceived, int total, string ip)
+    {
+        BytesReceived?.Invoke(received, totalReceived, total, ip);
     }
 
     private void OnDataReceived(Payloads.Internal.CommunicationPayload payload)
